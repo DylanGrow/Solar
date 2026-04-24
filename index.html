@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Tracker Control</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #121212; color: #ffffff; text-align: center; padding: 2rem; margin: 0; }
+        .card { background: #1e1e1e; padding: 2rem; border-radius: 12px; max-width: 400px; margin: 0 auto 1rem auto; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        h1 { font-size: 1.5rem; margin-top: 0; color: #4ade80; }
+        .data-value { font-size: 3rem; font-weight: bold; margin: 1rem 0; }
+        .label { color: #a1a1aa; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
+        input[type="range"] { width: 100%; margin: 1.5rem 0; accent-color: #4ade80; }
+        button { background: #4ade80; color: #121212; border: none; padding: 1rem 2rem; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; }
+        button:hover { background: #22c55e; }
+        button:active { transform: scale(0.98); }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>System Performance</h1>
+        <div class="label">Current Output</div>
+        <div class="data-value" id="output">0.0 kW</div>
+        <div class="label">Estimated Daily Total</div>
+        <div class="data-value" style="font-size: 1.5rem;" id="daily">0.0 kWh</div>
+    </div>
+
+    <div class="card">
+        <h1>Motor Control</h1>
+        <div class="label">Optimal Target Tilt</div>
+        <div class="data-value" id="optimal-angle" style="color: #4ade80;">0&deg;</div>
+        
+        <div class="label">Actual Panel Tilt</div>
+        <div class="data-value" id="current-angle-display">0&deg;</div>
+        
+        <input type="range" id="panel-slider" min="0" max="90" value="0">
+        <button onclick="syncPanels()">Sync to Optimal Target</button>
+        <div id="status" style="margin-top: 1rem; color: #4ade80; font-size: 0.8rem; height: 1rem;"></div>
+    </div>
+
+    <script>
+        const LATITUDE = 35.07;
+        const SYSTEM_CAPACITY_KW = 5.0; 
+
+        function calculateSolar() {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), 0, 0);
+            const diff = now - start;
+            const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
+            
+            const declination = -23.44 * Math.cos((360 / 365) * (dayOfYear + 10) * (Math.PI / 180));
+            const hourAngle = 15 * (now.getHours() + now.getMinutes() / 60 - 12);
+            
+            const latRad = LATITUDE * (Math.PI / 180);
+            const decRad = declination * (Math.PI / 180);
+            const haRad = hourAngle * (Math.PI / 180);
+            
+            const sinElevation = Math.sin(latRad) * Math.sin(decRad) + Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad);
+            const elevation = Math.asin(sinElevation) * (180 / Math.PI);
+            
+            let optimalTilt = 0;
+            let currentOutput = 0;
+
+            if (elevation > 0) {
+                optimalTilt = Math.max(0, 90 - elevation);
+                const actualTilt = parseInt(document.getElementById('panel-slider').value);
+                const tiltLoss = Math.cos((optimalTilt - actualTilt) * (Math.PI / 180));
+                
+                currentOutput = SYSTEM_CAPACITY_KW * Math.sin(elevation * (Math.PI / 180)) * Math.max(0, tiltLoss);
+            }
+
+            document.getElementById('optimal-angle').innerHTML = optimalTilt.toFixed(1) + '&deg;';
+            document.getElementById('output').innerText = Math.max(0, currentOutput).toFixed(2) + ' kW';
+            
+            const mockDaily = (SYSTEM_CAPACITY_KW * 4.5 * (now.getHours() / 24)).toFixed(1);
+            document.getElementById('daily').innerText = mockDaily + ' kWh';
+        }
+
+        document.getElementById('panel-slider').addEventListener('input', (e) => {
+            document.getElementById('current-angle-display').innerHTML = e.target.value + '&deg;';
+            calculateSolar();
+        });
+
+        function syncPanels() {
+            const opt = parseFloat(document.getElementById('optimal-angle').innerText);
+            document.getElementById('panel-slider').value = Math.round(opt);
+            document.getElementById('current-angle-display').innerHTML = Math.round(opt) + '&deg;';
+            calculateSolar();
+            
+            const status = document.getElementById('status');
+            status.innerText = "POST /api/motors payload sent... Synchronized!";
+            setTimeout(() => status.innerText = "", 3000);
+        }
+
+        setInterval(calculateSolar, 1000);
+        calculateSolar();
+    </script>
+</body>
+</html>
