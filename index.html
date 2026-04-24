@@ -8,93 +8,142 @@
         :root {
             --gold: #FFB612;
             --bg: #000000;
-            --panel: #0d0d0d;
+            --panel: #0f0f0f;
             --border: #222222;
             --fg: #ffffff;
-            --muted: #666666;
+            --ok: #00e676;
+            --warn: #ff3b30;
+            --muted: #777777;
         }
+
+        * { box-sizing: border-box; touch-action: manipulation; }
 
         body {
             margin: 0; background: var(--bg); color: var(--fg);
-            font-family: ui-monospace, 'Cascadia Code', monospace;
+            font-family: ui-monospace, 'Cascadia Code', 'SF Mono', monospace;
             display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+            user-select: none; -webkit-user-select: none;
         }
 
         header {
-            padding: 15px; border-bottom: 2px solid var(--gold);
+            padding: 16px; border-bottom: 2px solid var(--gold);
             display: flex; justify-content: space-between; align-items: center;
-            background: #111;
+            background: linear-gradient(180deg, #1a1a1a 0%, #000000 100%);
         }
-        .logo { font-weight: 900; color: var(--gold); letter-spacing: 2px; }
+        
+        .logo { font-weight: 900; color: var(--gold); letter-spacing: 2px; font-size: 1.1rem; }
+        .badge { font-size: 0.6rem; border: 1px solid var(--gold); padding: 3px 6px; border-radius: 3px; background: #111; }
 
         main { flex: 1; overflow-y: auto; padding: 20px; position: relative; }
+        main::-webkit-scrollbar { display: none; }
 
-        .compass-wrap { width: 280px; height: 280px; margin: 0 auto 20px; position: relative; }
-        /* FIXED: transform-origin ensures SVGs spin from their exact center */
-        .needle { transition: transform 0.1s linear; transform-origin: 50px 50px; }
+        /* Compass Visuals */
+        .compass-wrap { width: 260px; height: 260px; margin: 0 auto 20px; position: relative; }
+        .needle { transition: transform 0.15s cubic-bezier(0.2, 0, 0.2, 1); transform-origin: 50px 50px; }
         
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .stat-box { background: var(--panel); border: 1px solid var(--border); padding: 15px; border-radius: 4px; }
-        .label { font-size: 10px; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; }
-        .val { font-size: 22px; font-weight: 900; color: var(--gold); }
+        /* Metric Grids */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .stat-box { background: var(--panel); border: 1px solid var(--border); padding: 16px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
+        .label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; letter-spacing: 1px; font-weight: 700; }
+        .val { font-size: 1.4rem; font-weight: 900; color: var(--gold); }
+        .val.success { color: var(--ok); text-shadow: 0 0 10px rgba(0,230,118,0.3); }
 
-        .slider-card { background: #111; padding: 20px; border-left: 4px solid var(--gold); margin: 20px 0; }
-        input[type=range] { width: 100%; accent-color: var(--gold); cursor: pointer; }
+        /* Slider Area */
+        .slider-card { background: #111; padding: 20px; border-left: 4px solid var(--gold); margin: 20px 0; border-radius: 0 6px 6px 0; }
+        input[type=range] { width: 100%; accent-color: var(--gold); height: 30px; cursor: pointer; margin: 15px 0 5px; }
 
+        /* Actions */
         .btn { 
             background: var(--gold); color: #000; border: none; width: 100%; 
-            padding: 20px; font-weight: 900; text-transform: uppercase; border-radius: 4px;
+            padding: 20px; font-weight: 900; text-transform: uppercase; border-radius: 6px;
+            font-size: 1rem; letter-spacing: 1px; cursor: pointer; transition: transform 0.1s;
         }
-        .btn:active { background: #fff; }
+        .btn:active { background: #fff; transform: scale(0.98); }
 
+        /* Boot Overlay */
         #boot-screen { 
             position: absolute; inset: 0; background: #000; z-index: 100; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px;
         }
     </style>
 </head>
 <body>
 
 <div id="boot-screen">
-    <h1 style="color:var(--gold); letter-spacing:4px;">STEEL_FLUX v2.0</h1>
-    <p style="color:var(--muted); font-size:12px;">PRO SOLAR_FIELD_ENGINE // NC_REGION</p>
-    <button class="btn" id="start-sys" style="width:200px; margin-top:30px;">START SYSTEM</button>
+    <h1 style="color:var(--gold); letter-spacing:4px; font-size: 2rem; margin-bottom: 5px;">STEEL_FLUX <span style="color:#fff">2.1</span></h1>
+    <p style="color:var(--muted); font-size:0.8rem; letter-spacing: 2px; margin-bottom: 40px;">PRO SOLAR_FIELD_ENGINE</p>
+    
+    <div style="background:#111; border:1px solid #333; padding:15px; border-radius:6px; text-align:left; width:100%; max-width:300px; margin-bottom:40px;">
+        <div style="font-size:0.7rem; color:var(--muted); margin-bottom:8px;">SYSTEM CHECKLIST:</div>
+        <div style="font-size:0.85rem; color:var(--ok);">✓ Audio Engine</div>
+        <div style="font-size:0.85rem; color:var(--ok);">✓ Haptic Feedback</div>
+        <div style="font-size:0.85rem; color:var(--ok);">✓ 3D Spatial Arrays</div>
+        <div style="font-size:0.85rem; color:var(--ok);">✓ NC Declination Offset</div>
+    </div>
+
+    <button class="btn" id="start-sys" style="max-width:300px;">ACTIVATE SENSORS</button>
 </div>
 
 <header>
     <div class="logo">DYLAN_GROW</div>
-    <div style="font-size:10px; color:var(--gold)" id="sys-status">SYS_STBY</div>
+    <div class="badge" id="sys-status" style="color:var(--warn); border-color:var(--warn);">OFFLINE</div>
 </header>
 
 <main>
     <div class="compass-wrap">
         <svg viewBox="0 0 100 100" width="100%">
-            <circle cx="50" cy="50" r="48" fill="none" stroke="#222" stroke-width="1"/>
-            <g id="sunNeedle" class="needle"><line x1="50" y1="50" x2="50" y2="10" stroke="var(--gold)" stroke-width="3"/><circle cx="50" cy="8" r="3" fill="var(--gold)"/></g>
-            <g id="phoneNeedle" class="needle"><path d="M50,12 L46,25 L54,25 Z" fill="#fff" /><line x1="50" y1="50" x2="50" y2="15" stroke="#fff" stroke-width="1"/></g>
+            <circle cx="50" cy="50" r="48" fill="none" stroke="#333" stroke-width="1.5"/>
+            <circle cx="50" cy="50" r="42" fill="none" stroke="#1a1a1a" stroke-width="0.5"/>
+            
+            <g id="sunNeedle" class="needle">
+                <line x1="50" y1="50" x2="50" y2="10" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="50" cy="8" r="4" fill="var(--gold)"/>
+            </g>
+            
+            <g id="phoneNeedle" class="needle">
+                <path d="M50,14 L45,28 L55,28 Z" fill="#fff" />
+                <line x1="50" y1="50" x2="50" y2="18" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+            </g>
+
+            <circle cx="50" cy="50" r="3" fill="#fff"/>
         </svg>
     </div>
+
     <div class="grid">
         <div class="stat-box"><div class="label">True Azimuth</div><div class="val" id="az-read">000°</div></div>
-        <div class="stat-box"><div class="label">Tilt Angle</div><div class="val" id="tilt-read">0.0°</div></div>
-        <div class="stat-box"><div class="label">Sun Target</div><div class="val" id="sun-read">---°</div></div>
-        <div class="stat-box"><div class="label">GPS Lock</div><div class="val" id="gps-read" style="color:var(--muted); font-size:12px;">WAITING</div></div>
+        <div class="stat-box"><div class="label">Tilt (Pitch)</div><div class="val" id="tilt-read">0.0°</div></div>
+        <div class="stat-box"><div class="label">Target Align</div><div class="val" id="diff-read">---°</div></div>
+        <div class="stat-box"><div class="label">GPS Sat Lock</div><div class="val" id="gps-read" style="color:var(--warn); font-size:1rem;">SEARCHING</div></div>
     </div>
+
     <div class="slider-card">
-        <div style="display:flex; justify-content:space-between">
-            <span class="label">System Watts</span>
-            <span id="w-val" style="color:var(--gold); font-weight:bold;">800W</span>
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+            <span class="label">Array Capacity</span>
+            <span id="w-val" style="color:var(--gold); font-weight:900; font-size:1.2rem;">800 W</span>
         </div>
         <input type="range" id="w-slider" min="100" max="5000" step="50" value="800">
+        
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:15px; border-top:1px solid #333; padding-top:15px;">
+            <span class="label">Live Est. Output</span>
+            <span id="out-val" style="color:var(--ok); font-weight:900; font-size:1.6rem;">0.00 kW</span>
+        </div>
     </div>
-    <button class="btn" onclick="logData()">Record Reading</button>
+
+    <button class="btn" onclick="logData()">Log & Sync Data</button>
 </main>
 
 <script>
-    let state = { heading: 0, tilt: 0, watts: 800, sunAz: 180, lat: null, lng: null };
-    let audioCtx;
+    // --- STATE & CONFIG ---
+    const CONFIG = {
+        DECLINATION: -9.1, // NC True North Offset
+        ALIGN_TOLERANCE: 3 // Degrees for the "sweet spot"
+    };
 
-    // Minified SunCalc logic for standalone offline functionality
+    let state = { heading: 0, tilt: 0, watts: 800, sunAz: 180, sunAlt: 45, lat: null, lng: null };
+    let audioCtx;
+    let wakeLock = null;
+
+    // --- SUNCALC MATH ENGINE ---
     const PI=Math.PI,sin=Math.sin,cos=Math.cos,tan=Math.tan,asin=Math.asin,atan=Math.atan2,rad=PI/180,dayMs=86400000,J1970=2440588,J2000=2451545,e=rad*23.4397;
     function toDays(date){return date.valueOf()/dayMs-0.5+J1970-J2000;}
     function rightAscension(l,b){return atan(sin(l)*cos(e)-tan(b)*sin(e),cos(l));}
@@ -103,34 +152,59 @@
     function siderealTime(d,lw){return rad*(280.16+360.9856235*d)-lw;}
     function solarMeanAnomaly(d){return rad*(357.5291+0.98560028*d);}
     function eclipticLongitude(M){return M+rad*(1.9148*sin(M)+0.02*sin(2*M)+0.0003*sin(3*M))+rad*102.9372+PI;}
+    
     function getSunPosition(date,lat,lng){
         const lw=rad*-lng,phi=rad*lat,d=toDays(date),M=solarMeanAnomaly(d),L=eclipticLongitude(M),dec=declination(L,0),ra=rightAscension(L,0),H=siderealTime(d,lw)-ra;
-        return (azimuth(H,phi,dec)*180/PI+180)%360; 
+        const az = azimuth(H,phi,dec);
+        const alt = Math.asin(sin(phi)*sin(dec) + cos(phi)*cos(dec)*cos(H));
+        return { az: (az*180/PI+180)%360, alt: alt*180/PI }; 
+    }
+
+    // --- SYSTEM INIT ---
+    async function keepAwake() {
+        if ('wakeLock' in navigator) {
+            try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) { console.warn("WakeLock Denied"); }
+        }
     }
 
     document.getElementById('start-sys').onclick = async function() {
+        // Unlock Audio
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if(audioCtx.state === 'suspended') await audioCtx.resume();
+
+        // Unlock Sensors (iOS 13+ requirement)
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
             const res = await DeviceOrientationEvent.requestPermission();
             if (res === 'granted') initSensors();
         } else {
             initSensors();
         }
+        
+        keepAwake();
+        
         document.getElementById('boot-screen').style.display = 'none';
-        document.getElementById('sys-status').innerText = 'SYS_LIVE';
-        ping(880);
+        const sysBadge = document.getElementById('sys-status');
+        sysBadge.innerText = 'NC_LOCKED';
+        sysBadge.style.color = 'var(--ok)';
+        sysBadge.style.borderColor = 'var(--ok)';
+        
+        ping(880, 0.1);
     }
 
     function initSensors() {
-        // FIXED: Android absolute orientation fallback
+        // 1. Compass & Tilt
         const orientHandler = (e) => {
+            let rawHeading = 0;
             if (e.webkitCompassHeading) {
-                state.heading = e.webkitCompassHeading;
+                rawHeading = e.webkitCompassHeading; // iOS True(ish) North
             } else if (e.absolute && e.alpha !== null) {
-                state.heading = 360 - e.alpha; 
+                rawHeading = 360 - e.alpha; // Android Absolute
             } else {
-                state.heading = 360 - e.alpha; 
+                rawHeading = 360 - (e.alpha || 0); // Fallback
             }
+            
+            // Apply NC Magnetic Declination Fix
+            state.heading = (rawHeading + CONFIG.DECLINATION + 360) % 360; 
             state.tilt = Math.abs(e.beta || 0);
             updateUI();
         };
@@ -141,52 +215,104 @@
             window.addEventListener('deviceorientation', orientHandler);
         }
 
-        // FIXED: Live GPS Tracking for Sun Azimuth
+        // 2. Live GPS & Solar Tracking
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(pos => {
                 state.lat = pos.coords.latitude;
                 state.lng = pos.coords.longitude;
-                document.getElementById('gps-read').innerText = "ACTIVE";
-                document.getElementById('gps-read').style.color = "var(--gold)";
                 
-                // Calculate live sun position
-                state.sunAz = getSunPosition(new Date(), state.lat, state.lng);
-                document.getElementById('sun-read').innerText = Math.round(state.sunAz) + '°';
+                const gpsBadge = document.getElementById('gps-read');
+                gpsBadge.innerText = "LOCKED";
+                gpsBadge.style.color = "var(--ok)";
+                
+                // Update Sun Math based on new coordinates and current time
+                const sun = getSunPosition(new Date(), state.lat, state.lng);
+                state.sunAz = sun.az;
+                state.sunAlt = sun.alt;
                 updateUI();
             }, (err) => {
-                document.getElementById('gps-read').innerText = "DENIED";
-                document.getElementById('gps-read').style.color = "var(--warn)";
-            }, { enableHighAccuracy: true });
+                const gpsBadge = document.getElementById('gps-read');
+                gpsBadge.innerText = "DENIED";
+                gpsBadge.style.color = "var(--warn)";
+            }, { enableHighAccuracy: true, maximumAge: 10000 });
         }
     }
 
-    function ping(f) {
-        if(!audioCtx) return;
+    // --- AUDIO ENGINE ---
+    function ping(freq, duration = 0.05, vol = 0.1) {
+        if(!audioCtx || audioCtx.state !== 'running') return;
         const o = audioCtx.createOscillator();
         const g = audioCtx.createGain();
+        o.type = 'sine';
         o.connect(g); g.connect(audioCtx.destination);
-        o.frequency.value = f;
-        g.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.1);
-        o.start(); o.stop(audioCtx.currentTime + 0.1);
+        o.frequency.value = freq;
+        g.gain.setValueAtTime(vol, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+        o.start(); o.stop(audioCtx.currentTime + duration);
     }
+
+    // --- MAIN RENDER LOOP ---
+    let lastPing = 0;
 
     function updateUI() {
+        // Update Needles
         document.getElementById('phoneNeedle').style.transform = `rotate(${state.heading}deg)`;
         document.getElementById('sunNeedle').style.transform = `rotate(${state.sunAz}deg)`;
+        
+        // Update Readouts
         document.getElementById('az-read').innerText = Math.round(state.heading).toString().padStart(3,'0') + '°';
         document.getElementById('tilt-read').innerText = state.tilt.toFixed(1) + '°';
+
+        // Alignment Math
+        let diff = Math.abs(state.sunAz - state.heading);
+        if (diff > 180) diff = 360 - diff;
+        
+        const diffRead = document.getElementById('diff-read');
+        diffRead.innerText = Math.round(diff) + '°';
+        
+        // Geiger Sweet Spot Audio & Visuals
+        const now = Date.now();
+        if (diff <= CONFIG.ALIGN_TOLERANCE) {
+            diffRead.classList.add('success');
+            document.getElementById('az-read').classList.add('success');
+            // Throttle the ping to avoid audio clipping (every 300ms)
+            if (now - lastPing > 300) {
+                ping(1200, 0.1, 0.05); 
+                lastPing = now;
+            }
+        } else {
+            diffRead.classList.remove('success');
+            document.getElementById('az-read').classList.remove('success');
+        }
+
+        // --- 3D AOI WATTAGE CALCULATION ---
+        const radTilt = state.tilt * PI / 180;
+        const radSunAlt = state.sunAlt * PI / 180;
+        const radAzDiff = diff * PI / 180;
+        
+        // Spherical Trig: cos(AOI) = sin(sunAlt)*cos(tilt) + cos(sunAlt)*sin(tilt)*cos(azDiff)
+        const cosAOI = (Math.sin(radSunAlt) * Math.cos(radTilt)) + (Math.cos(radSunAlt) * Math.sin(radTilt) * Math.cos(radAzDiff));
+        
+        // Prevent negative efficiency if panel is pointed away/down
+        const eff = Math.max(0, cosAOI); 
+        
+        document.getElementById('out-val').innerText = ((state.watts * eff) / 1000).toFixed(2) + ' kW';
     }
 
+    // --- UI CONTROLS ---
     document.getElementById('w-slider').oninput = (e) => {
         state.watts = e.target.value;
-        document.getElementById('w-val').innerText = state.watts + 'W';
+        document.getElementById('w-val').innerText = state.watts + ' W';
+        updateUI();
     }
 
     function logData() {
-        ping(440);
-        // iOS gracefully ignores vibrate, Android provides haptic feedback
-        if ('vibrate' in navigator) navigator.vibrate(100);
-        alert('READING_STORED: ' + Math.round(state.heading) + '° AZ, ' + state.tilt.toFixed(1) + '° TILT');
+        ping(600, 0.2, 0.2);
+        if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]); // Android Haptics
+        
+        const logString = `NC_SITE_RECORD\nAZIMUTH: ${Math.round(state.heading)}°\nTILT: ${state.tilt.toFixed(1)}°\nCAPACITY: ${state.watts}W\nEST. YIELD: ${document.getElementById('out-val').innerText}`;
+        console.log(logString);
+        alert('DATA SYNCHED:\n\n' + logString);
     }
 </script>
 </body>
