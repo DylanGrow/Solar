@@ -19,9 +19,10 @@
 }
 
 html, body {
+  position: fixed;
+  overflow: hidden;
   width: 100%;
   height: 100%;
-  overflow-x: hidden;
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
@@ -30,6 +31,18 @@ html, body {
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
 
 .hidden {
@@ -139,6 +152,7 @@ html, body {
   cursor: pointer;
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
   transition: background 0.2s;
+  white-space: nowrap;
 }
 
 .btn-secondary:active {
@@ -213,12 +227,32 @@ html, body {
   letter-spacing: 1px;
 }
 
+#online-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+#online-indicator.online {
+  background: var(--accent-green);
+}
+
+#online-indicator.offline {
+  background: var(--accent-red);
+}
+
 .header-right {
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 
 #main-content {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  height: calc(100% - 48px);
   padding: 8px 12px 24px;
   max-width: 420px;
   margin: 0 auto;
@@ -326,6 +360,16 @@ html, body {
 #compass-canvas {
   width: 260px;
   height: 260px;
+  transition: opacity 0.5s;
+}
+
+#compass-canvas.calibrating {
+  animation: pulse-cal 1s ease-in-out infinite;
+}
+
+@keyframes pulse-cal {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 #accuracy-warning {
@@ -333,6 +377,14 @@ html, body {
   color: var(--accent-red);
   margin-top: 4px;
   font-family: 'Courier New', 'Lucida Console', monospace;
+}
+
+#calibration-progress {
+  font-size: 12px;
+  color: var(--accent-amber);
+  margin-top: 4px;
+  font-family: 'Courier New', 'Lucida Console', monospace;
+  animation: pulse-cal 1.5s ease-in-out infinite;
 }
 
 #guidance-section {
@@ -381,7 +433,8 @@ html, body {
   height: 100%;
   background: var(--accent-amber);
   border-radius: 3px;
-  transition: width 0.3s ease, background 0.3s ease;
+  width: 0%;
+  transition: width 0.5s ease-out, background 0.3s;
 }
 
 #efficiency-label {
@@ -446,6 +499,18 @@ html, body {
   min-width: 80px;
 }
 
+.panel-number-input {
+  width: 56px;
+  background: var(--bg-surface);
+  border: 1px solid var(--text-dim);
+  color: var(--text-primary);
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', 'Lucida Console', monospace;
+  font-size: 13px;
+  text-align: center;
+}
+
 .buttons-row {
   gap: 6px;
 }
@@ -481,7 +546,12 @@ html, body {
   margin-bottom: 8px;
 }
 
-#export-lock-btn {
+.lock-actions {
+  display: flex;
+  gap: 8px;
+}
+
+#export-lock-btn, #copy-lock-btn {
   font-size: 11px;
 }
 
@@ -492,6 +562,8 @@ html, body {
   font-size: 11px;
   color: var(--text-secondary);
   margin-top: 8px;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 #arc-peak-window {
@@ -501,11 +573,49 @@ html, body {
   font-family: 'Courier New', 'Lucida Console', monospace;
 }
 
+#peak-countdown {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  font-family: 'Courier New', 'Lucida Console', monospace;
+}
+
 #tilt-zero-value {
   font-family: 'Courier New', 'Lucida Console', monospace;
   font-size: 12px;
   color: var(--accent-amber);
   margin-left: 8px;
+}
+
+.ref-table-container {
+  margin-top: 12px;
+}
+
+.ref-table-container h4 {
+  font-size: 12px;
+  color: var(--accent-amber);
+  margin-bottom: 6px;
+  font-family: 'Courier New', 'Lucida Console', monospace;
+}
+
+.ref-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: 'Courier New', 'Lucida Console', monospace;
+}
+
+.ref-table th {
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--text-dim);
+}
+
+.ref-table td {
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(68, 68, 90, 0.3);
 }
 
 .state-night {
@@ -557,8 +667,58 @@ html, body {
   50% { box-shadow: 0 0 30px var(--lock-glow), 0 0 60px var(--lock-glow); }
 }
 
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--accent-amber);
+  color: var(--bg-primary);
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  z-index: 2000;
+  opacity: 0;
+  transition: transform 0.3s, opacity 0.3s;
+  pointer-events: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  font-weight: 500;
+  max-width: 90vw;
+  text-align: center;
+}
+
+.toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-primary: #1a1a24;
+    --bg-surface: #222230;
+    --bg-card: #2a2a36;
+    --text-dim: #555570;
+  }
+}
+
 @media (min-width: 420px) {
   #main-content {
     padding: 12px 16px 32px;
+  }
+  
+  #compass-canvas {
+    width: 280px;
+    height: 280px;
+  }
+}
+
+@media (min-width: 768px) {
+  #main-content {
+    padding: 16px 24px 40px;
+  }
+  
+  #compass-canvas {
+    width: 300px;
+    height: 300px;
   }
 }
