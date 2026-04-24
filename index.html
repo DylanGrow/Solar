@@ -3,98 +3,269 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Tracker Control</title>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Solar Tracker & Efficiency Monitor</title>
     <style>
-        body { font-family: system-ui, sans-serif; background: #121212; color: #ffffff; text-align: center; padding: 2rem; margin: 0; }
-        .card { background: #1e1e1e; padding: 2rem; border-radius: 12px; max-width: 400px; margin: 0 auto 1rem auto; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        h1 { font-size: 1.5rem; margin-top: 0; color: #4ade80; }
-        .data-value { font-size: 3rem; font-weight: bold; margin: 1rem 0; }
-        .label { color: #a1a1aa; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
-        input[type="range"] { width: 100%; margin: 1.5rem 0; accent-color: #4ade80; }
-        button { background: #4ade80; color: #121212; border: none; padding: 1rem 2rem; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; }
-        button:hover { background: #22c55e; }
-        button:active { transform: scale(0.98); }
+        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #000000; color: #ffffff; margin: 0; padding: 2rem; display: -webkit-box; display: -ms-flexbox; display: flex; -webkit-box-pack: center; -ms-flex-pack: center; justify-content: center; }
+        .dashboard { width: 100%; max-width: 500px; }
+        .card { background: #111111; padding: 1.5rem; border-radius: 8px; border: 1px solid #FFB612; -webkit-box-shadow: 0 0 10px rgba(255, 182, 18, 0.2); box-shadow: 0 0 10px rgba(255, 182, 18, 0.2); text-align: center; -webkit-transition: all 0.3s ease; transition: all 0.3s ease; margin-bottom: 1.5rem; }
+        .card.aligned { border-color: #39ff14; -webkit-box-shadow: 0 0 20px rgba(57, 255, 20, 0.6); box-shadow: 0 0 20px rgba(57, 255, 20, 0.6); }
+        h1 { font-size: 1.2rem; margin-top: 0; color: #FFB612; text-shadow: 0 0 5px rgba(255, 182, 18, 0.5); text-transform: uppercase; letter-spacing: 2px; }
+        .data-value { font-size: 3rem; font-weight: bold; margin: 0.5rem 0; color: #ffffff; }
+        .data-value.success { color: #39ff14; text-shadow: 0 0 10px rgba(57, 255, 20, 0.8); }
+        .label { color: #aaaaaa; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .efficiency-bar-container { width: 100%; background: #333; border-radius: 4px; margin-top: 1rem; height: 24px; position: relative; overflow: hidden; border: 1px solid #555; }
+        .efficiency-bar { height: 100%; background: #FFB612; width: 0%; -webkit-transition: width 0.3s ease, background-color 0.3s ease; transition: width 0.3s ease, background-color 0.3s ease; }
+        .efficiency-text { position: absolute; top: 0; left: 0; width: 100%; text-align: center; line-height: 24px; font-size: 0.85rem; font-weight: bold; color: #000; text-shadow: 0 0 2px rgba(255,255,255,0.5); }
+        
+        .schedule-grid { display: -webkit-box; display: -ms-flexbox; display: flex; -webkit-box-pack: justify; -ms-flex-pack: justify; justify-content: space-between; margin-top: 1rem; }
+        .schedule-item { background: #000000; padding: 1rem 0.5rem; border: 1px solid #333; border-radius: 4px; width: 31%; -webkit-box-sizing: border-box; box-sizing: border-box; }
+        .time-label { color: #FFB612; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.5rem; }
+        .angle-val { font-size: 1.2rem; font-weight: bold; }
+        
+        #location-status { font-size: 0.85rem; color: #aaaaaa; margin-bottom: 0.5rem; text-align: center; font-style: italic; height: 1.2rem; }
+        
+        .controls { display: -webkit-box; display: -ms-flexbox; display: flex; -ms-flex-wrap: wrap; flex-wrap: wrap; margin-top: 1rem; }
+        input[type="text"] { -webkit-box-flex: 1; -ms-flex: 1; flex: 1; padding: 0.5rem; background: #222; border: 1px solid #444; color: white; border-radius: 4px; min-width: 120px; margin-right: 0.5rem; }
+        button.action-btn { background: #FFB612; color: #000000; border: none; padding: 0.5rem 1rem; border-radius: 4px; font-weight: bold; cursor: pointer; -webkit-box-flex: 1; -ms-flex: 1; flex: 1; min-width: 120px; text-transform: uppercase; margin-bottom: 0.5rem; }
+        button.action-btn:hover { background: #e5a410; }
+        button.action-btn.secondary { background: #333; color: white; border: 1px solid #555; margin-left: 0.5rem; }
+        button.action-btn.secondary:hover { background: #444; }
+        
+        .leveler-box { display: -webkit-box; display: -ms-flexbox; display: flex; -ms-flex-pack: distribute; justify-content: space-around; -webkit-box-align: center; -ms-flex-align: center; align-items: center; margin-top: 1rem; }
+        .leveler-col { display: -webkit-box; display: -ms-flexbox; display: flex; -webkit-box-orient: vertical; -webkit-box-direction: normal; -ms-flex-direction: column; flex-direction: column; -webkit-box-align: center; -ms-flex-align: center; align-items: center; }
+        .vs-text { font-size: 1.5rem; color: #555; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h1>System Performance</h1>
-        <div class="label">Current Output</div>
-        <div class="data-value" id="output">0.0 kW</div>
-        <div class="label">Estimated Daily Total</div>
-        <div class="data-value" style="font-size: 1.5rem;" id="daily">0.0 kWh</div>
-    </div>
+    <div class="dashboard">
+        <div id="location-status">Initializing James City Coordinates...</div>
 
-    <div class="card">
-        <h1>Motor Control</h1>
-        <div class="label">Optimal Target Tilt</div>
-        <div class="data-value" id="optimal-angle" style="color: #4ade80;">0&deg;</div>
-        
-        <div class="label">Actual Panel Tilt</div>
-        <div class="data-value" id="current-angle-display">0&deg;</div>
-        
-        <input type="range" id="panel-slider" min="0" max="90" value="0">
-        <button onclick="syncPanels()">Sync to Optimal Target</button>
-        <div id="status" style="margin-top: 1rem; color: #4ade80; font-size: 0.8rem; height: 1rem;"></div>
+        <div class="card" id="leveler-card">
+            <h1>Panel Alignment & Efficiency</h1>
+            <div class="label" style="margin-bottom: 1rem;">Lock phone in portrait, rest flat on panel</div>
+            
+            <div class="leveler-box">
+                <div class="leveler-col">
+                    <div class="label">Target Tilt</div>
+                    <div class="data-value" id="target-tilt-display" style="font-size: 2.5rem; color: #FFB612;">--&deg;</div>
+                </div>
+                <div class="vs-text">VS</div>
+                <div class="leveler-col">
+                    <div class="label">Phone Tilt</div>
+                    <div class="data-value" id="phone-tilt-display" style="font-size: 2.5rem;">--&deg;</div>
+                </div>
+            </div>
+
+            <div class="efficiency-bar-container">
+                <div class="efficiency-bar" id="eff-bar"></div>
+                <div class="efficiency-text" id="eff-text">Awaiting Sensor Data...</div>
+            </div>
+
+            <button class="action-btn" id="sensor-btn" onclick="requestSensors()" style="margin-top: 1.5rem; width: 100%;">Activate Sensors</button>
+        </div>
+
+        <div class="card">
+            <h1>Daily Schedule & Settings</h1>
+            <div class="schedule-grid">
+                <div class="schedule-item">
+                    <div class="time-label">9:00 AM</div>
+                    <div class="angle-val" id="am-tilt">--&deg;</div>
+                </div>
+                <div class="schedule-item">
+                    <div class="time-label">12:00 PM</div>
+                    <div class="angle-val" id="noon-tilt">--&deg;</div>
+                </div>
+                <div class="schedule-item">
+                    <div class="time-label">3:00 PM</div>
+                    <div class="angle-val" id="pm-tilt">--&deg;</div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <input type="text" id="zip-input" placeholder="US Zip Code">
+                <button class="action-btn" onclick="geocodeZip()">Set Zip</button>
+                <button class="action-btn secondary" onclick="requestGPS(true)">Use GPS</button>
+            </div>
+            <div class="label" style="margin-top: 1rem;">Target Azimuth (Compass): <span id="optimal-azimuth" style="color: #FFB612; font-weight: bold; font-size: 1.2rem;">--&deg;</span></div>
+        </div>
     </div>
 
     <script>
-        const LATITUDE = 35.07;
-        const SYSTEM_CAPACITY_KW = 5.0; 
+        // Defaulting to James City, NC
+        var userLatitude = 35.07; 
+        var currentTargetTilt = 0;
+        var isSensorActive = false;
 
-        function calculateSolar() {
-            const now = new Date();
-            const start = new Date(now.getFullYear(), 0, 0);
-            const diff = now - start;
-            const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
-            
-            const declination = -23.44 * Math.cos((360 / 365) * (dayOfYear + 10) * (Math.PI / 180));
-            const hourAngle = 15 * (now.getHours() + now.getMinutes() / 60 - 12);
-            
-            const latRad = LATITUDE * (Math.PI / 180);
-            const decRad = declination * (Math.PI / 180);
-            const haRad = hourAngle * (Math.PI / 180);
-            
-            const sinElevation = Math.sin(latRad) * Math.sin(decRad) + Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad);
-            const elevation = Math.asin(sinElevation) * (180 / Math.PI);
-            
-            let optimalTilt = 0;
-            let currentOutput = 0;
+        function getSolarAngles(hourOffset) {
+            if (hourOffset === undefined) { hourOffset = 0; }
+            if (userLatitude === null) return { tilt: null, azimuth: null, active: false };
 
-            if (elevation > 0) {
-                optimalTilt = Math.max(0, 90 - elevation);
-                const actualTilt = parseInt(document.getElementById('panel-slider').value);
-                const tiltLoss = Math.cos((optimalTilt - actualTilt) * (Math.PI / 180));
-                
-                currentOutput = SYSTEM_CAPACITY_KW * Math.sin(elevation * (Math.PI / 180)) * Math.max(0, tiltLoss);
+            var now = new Date();
+            var targetTime = new Date(now.getTime() + hourOffset * 60 * 60 * 1000);
+            var start = new Date(targetTime.getFullYear(), 0, 0);
+            var dayOfYear = Math.floor((targetTime - start) / (1000 * 60 * 60 * 24));
+            
+            var declination = -23.44 * Math.cos((360 / 365) * (dayOfYear + 10) * (Math.PI / 180));
+            var hourAngle = 15 * (targetTime.getHours() + targetTime.getMinutes() / 60 - 12);
+            
+            var latRad = userLatitude * (Math.PI / 180);
+            var decRad = declination * (Math.PI / 180);
+            var haRad = hourAngle * (Math.PI / 180);
+            
+            var sinElevation = Math.sin(latRad) * Math.sin(decRad) + Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad);
+            var elevation = Math.asin(sinElevation) * (180 / Math.PI);
+            
+            var cosAzimuth = (Math.sin(decRad) - Math.sin(elevation * Math.PI / 180) * Math.sin(latRad)) / 
+                               (Math.cos(elevation * Math.PI / 180) * Math.cos(latRad));
+            
+            var azimuth = Math.acos(Math.max(-1, Math.min(1, cosAzimuth))) * (180 / Math.PI);
+            if (hourAngle > 0) azimuth = 360 - azimuth;
+
+            var optimalTilt = elevation > 0 ? Math.max(0, 90 - elevation) : 0;
+            
+            return { tilt: optimalTilt, azimuth: azimuth, active: elevation > 0 };
+        }
+
+        function updateDashboard() {
+            if (userLatitude === null) return;
+            var current = getSolarAngles(0);
+            
+            currentTargetTilt = current.active ? current.tilt : 0;
+            document.getElementById('target-tilt-display').innerHTML = current.active ? currentTargetTilt.toFixed(1) + '&deg;' : 'Offline';
+            document.getElementById('optimal-azimuth').innerHTML = current.active ? current.azimuth.toFixed(0) + '&deg;' : 'Offline';
+
+            var now = new Date();
+            
+            function getTiltForHour(targetHour) {
+                var offset = targetHour - (now.getHours() + now.getMinutes() / 60);
+                var angles = getSolarAngles(offset);
+                return angles.active ? Math.round(angles.tilt) + '&deg;' : 'N/A';
             }
 
-            document.getElementById('optimal-angle').innerHTML = optimalTilt.toFixed(1) + '&deg;';
-            document.getElementById('output').innerText = Math.max(0, currentOutput).toFixed(2) + ' kW';
-            
-            const mockDaily = (SYSTEM_CAPACITY_KW * 4.5 * (now.getHours() / 24)).toFixed(1);
-            document.getElementById('daily').innerText = mockDaily + ' kWh';
+            document.getElementById('am-tilt').innerHTML = getTiltForHour(9);
+            document.getElementById('noon-tilt').innerHTML = getTiltForHour(12);
+            document.getElementById('pm-tilt').innerHTML = getTiltForHour(15);
         }
 
-        document.getElementById('panel-slider').addEventListener('input', (e) => {
-            document.getElementById('current-angle-display').innerHTML = e.target.value + '&deg;';
-            calculateSolar();
-        });
-
-        function syncPanels() {
-            const opt = parseFloat(document.getElementById('optimal-angle').innerText);
-            document.getElementById('panel-slider').value = Math.round(opt);
-            document.getElementById('current-angle-display').innerHTML = Math.round(opt) + '&deg;';
-            calculateSolar();
+        function handleOrientation(event) {
+            var phoneTilt = Math.abs(event.beta); 
+            if (phoneTilt > 90) phoneTilt = 180 - phoneTilt; 
             
-            const status = document.getElementById('status');
-            status.innerText = "POST /api/motors payload sent... Synchronized!";
-            setTimeout(() => status.innerText = "", 3000);
+            var phoneDisplay = document.getElementById('phone-tilt-display');
+            var levelerCard = document.getElementById('leveler-card');
+            var effBar = document.getElementById('eff-bar');
+            var effText = document.getElementById('eff-text');
+            
+            phoneDisplay.innerHTML = phoneTilt.toFixed(1) + '&deg;';
+
+            if (currentTargetTilt > 0) {
+                // Calculate cosine loss: cos(error_angle)
+                var errorAngle = Math.abs(phoneTilt - currentTargetTilt);
+                var efficiency = Math.max(0, Math.cos(errorAngle * (Math.PI / 180)) * 100);
+                
+                effBar.style.width = efficiency.toFixed(1) + '%';
+                effText.innerText = 'Capturing ' + efficiency.toFixed(1) + '% of Max Power';
+
+                if (errorAngle <= 1.5) {
+                    phoneDisplay.className = 'data-value success';
+                    levelerCard.className = 'card aligned';
+                    effBar.style.backgroundColor = '#39ff14'; // Neon green when perfect
+                } else {
+                    phoneDisplay.className = 'data-value';
+                    levelerCard.className = 'card';
+                    effBar.style.backgroundColor = '#FFB612'; // Back to gold when off
+                }
+            }
         }
 
-        setInterval(calculateSolar, 1000);
-        calculateSolar();
+        function requestSensors() {
+            var btn = document.getElementById('sensor-btn');
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(function(permissionState) {
+                        if (permissionState === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation);
+                            btn.style.display = 'none';
+                            isSensorActive = true;
+                        } else {
+                            alert("Sensor permission denied.");
+                        }
+                    })
+                    .catch(function(error) { console.error(error); });
+            } else {
+                window.addEventListener('deviceorientation', handleOrientation);
+                btn.style.display = 'none';
+                isSensorActive = true;
+            }
+        }
+
+        function geocodeZip() {
+            var zipInput = document.getElementById('zip-input').value;
+            var zip = zipInput.replace(/^\s+|\s+$/g, '');
+            var statusText = document.getElementById('location-status');
+            if (!zip) return;
+
+            statusText.innerText = "Looking up zip code...";
+            
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "https://nominatim.openstreetmap.org/search?postalcode=" + zip + "&country=US&format=json", true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        try {
+                            var data = JSON.parse(xhr.responseText);
+                            if (data && data.length > 0) {
+                                userLatitude = parseFloat(data[0].lat);
+                                localStorage.setItem('solar_lat', userLatitude);
+                                statusText.innerText = "Location updated: Lat " + userLatitude.toFixed(2) + "°";
+                                updateDashboard();
+                            } else {
+                                statusText.innerText = "Zip code not found. Try GPS.";
+                            }
+                        } catch (e) {
+                            statusText.innerText = "Data error. Try GPS.";
+                        }
+                    } else {
+                        statusText.innerText = "Network error during lookup.";
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        function requestGPS(forcePrompt) {
+            var statusText = document.getElementById('location-status');
+            if ("geolocation" in navigator) {
+                statusText.innerText = "Waiting for GPS permission...";
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        userLatitude = position.coords.latitude;
+                        localStorage.setItem('solar_lat', userLatitude);
+                        statusText.innerText = "Active GPS: Lat " + userLatitude.toFixed(2) + "°";
+                        updateDashboard();
+                    },
+                    function(error) {
+                        statusText.innerText = "GPS denied. Please enter a zip code.";
+                    }
+                );
+            } else {
+                statusText.innerText = "GPS not supported on this device.";
+            }
+        }
+
+        var cachedLat = localStorage.getItem('solar_lat');
+        if (cachedLat) {
+            userLatitude = parseFloat(cachedLat);
+            document.getElementById('location-status').innerText = "Using saved location (Lat: " + userLatitude.toFixed(2) + "°)";
+        } else {
+            document.getElementById('location-status').innerText = "Using default location (Lat: 35.07°)";
+        }
+        
+        updateDashboard();
+        setInterval(updateDashboard, 1000);
     </script>
 </body>
 </html>
