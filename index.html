@@ -12,11 +12,15 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon-192.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.svg">
+  <link rel="preload" href="app.js" as="script">
+  <link rel="preload" href="style.css" as="style">
 </head>
 <body>
+  <div id="screen-reader-guidance" aria-live="polite" class="sr-only"></div>
+
   <div id="permission-overlay" class="overlay active">
     <div class="permission-card">
-      <svg class="permission-icon" viewBox="0 0 100 100" width="80" height="80">
+      <svg class="permission-icon" viewBox="0 0 100 100" width="80" height="80" aria-hidden="true">
         <circle cx="50" cy="50" r="20" fill="none" stroke="#f5a623" stroke-width="4"/>
         <g transform="translate(50,50)">
           <line x1="0" y1="-28" x2="0" y2="-16" stroke="#f5a623" stroke-width="3"/>
@@ -40,7 +44,7 @@
 
   <div id="portrait-overlay" class="overlay">
     <div class="portrait-card">
-      <svg viewBox="0 0 48 48" width="64" height="64">
+      <svg viewBox="0 0 48 48" width="64" height="64" aria-hidden="true">
         <rect x="8" y="4" width="32" height="40" rx="4" fill="none" stroke="#f5a623" stroke-width="2"/>
         <rect x="14" y="8" width="20" height="32" rx="2" fill="none" stroke="#f5a623" stroke-width="1.5"/>
       </svg>
@@ -50,7 +54,7 @@
 
   <div id="sensors-denied-overlay" class="overlay">
     <div class="permission-card">
-      <svg viewBox="0 0 48 48" width="64" height="64">
+      <svg viewBox="0 0 48 48" width="64" height="64" aria-hidden="true">
         <circle cx="24" cy="24" r="20" fill="none" stroke="#ff1744" stroke-width="2"/>
         <line x1="12" y1="12" x2="36" y2="36" stroke="#ff1744" stroke-width="3"/>
       </svg>
@@ -61,7 +65,7 @@
 
   <div id="no-compass-overlay" class="overlay">
     <div class="permission-card">
-      <svg viewBox="0 0 48 48" width="64" height="64">
+      <svg viewBox="0 0 48 48" width="64" height="64" aria-hidden="true">
         <rect x="4" y="10" width="40" height="28" rx="3" fill="none" stroke="#8888a0" stroke-width="2"/>
         <line x1="16" y1="38" x2="32" y2="38" stroke="#8888a0" stroke-width="2"/>
         <line x1="24" y1="38" x2="24" y2="44" stroke="#8888a0" stroke-width="2"/>
@@ -74,7 +78,7 @@
 
   <header id="app-header" class="hidden">
     <div class="header-left">
-      <svg viewBox="0 0 24 24" width="28" height="28" class="header-icon">
+      <svg viewBox="0 0 24 24" width="28" height="28" class="header-icon" aria-hidden="true">
         <circle cx="12" cy="12" r="5" fill="none" stroke="#f5a623" stroke-width="1.5"/>
         <g transform="translate(12,12)">
           <line x1="0" y1="-8" x2="0" y2="-5" stroke="#f5a623" stroke-width="1.2"/>
@@ -88,8 +92,36 @@
         </g>
       </svg>
       <span class="header-title">SolarLock</span>
+      <span id="online-indicator" class="online" title="Online/Offline status"></span>
     </div>
     <div class="header-right">
+      <button id="mute-btn" class="btn-icon" aria-label="Toggle audio">
+        <svg viewBox="0 0 20 20" width="20" height="20" id="mute-icon-unmuted">
+          <polygon points="2,6 6,6 10,2 10,18 6,14 2,14" fill="#e8e8f0"/>
+          <path d="M13,7 Q16,10 13,13" fill="none" stroke="#e8e8f0" stroke-width="1.5"/>
+          <path d="M15,4 Q20,10 15,16" fill="none" stroke="#e8e8f0" stroke-width="1.5"/>
+        </svg>
+        <svg viewBox="0 0 20 20" width="20" height="20" id="mute-icon-muted" class="hidden">
+          <polygon points="2,6 6,6 10,2 10,18 6,14 2,14" fill="#e8e8f0"/>
+          <line x1="13" y1="7" x2="17" y2="13" stroke="#ff1744" stroke-width="2"/>
+          <line x1="17" y1="7" x2="13" y2="13" stroke="#ff1744" stroke-width="2"/>
+        </svg>
+      </button>
+      <button id="flashlight-btn" class="btn-icon" aria-label="Toggle high contrast">
+        <svg viewBox="0 0 20 20" width="20" height="20">
+          <circle cx="10" cy="10" r="5" fill="none" stroke="#e8e8f0" stroke-width="1.5"/>
+          <g transform="translate(10,10)">
+            <line x1="0" y1="-9" x2="0" y2="-7" stroke="#e8e8f0" stroke-width="1.5"/>
+            <line x1="0" y1="9" x2="0" y2="7" stroke="#e8e8f0" stroke-width="1.5"/>
+            <line x1="-9" y1="0" x2="-7" y2="0" stroke="#e8e8f0" stroke-width="1.5"/>
+            <line x1="9" y1="0" x2="7" y2="0" stroke="#e8e8f0" stroke-width="1.5"/>
+            <line x1="-6.3" y1="-6.3" x2="-5" y2="-5" stroke="#e8e8f0" stroke-width="1.5"/>
+            <line x1="6.3" y1="6.3" x2="5" y2="5" stroke="#e8e8f0" stroke-width="1.5"/>
+            <line x1="6.3" y1="-6.3" x2="5" y2="-5" stroke="#e8e8f0" stroke-width="1.5"/>
+            <line x1="-6.3" y1="6.3" x2="-5" y2="5" stroke="#e8e8f0" stroke-width="1.5"/>
+          </g>
+        </svg>
+      </button>
       <button id="calibration-btn" class="btn-icon" aria-label="Calibration">
         <svg viewBox="0 0 20 20" width="20" height="20">
           <circle cx="10" cy="10" r="8" fill="none" stroke="#e8e8f0" stroke-width="1.5"/>
@@ -103,7 +135,7 @@
       <button id="info-btn" class="btn-icon" aria-label="Information">
         <svg viewBox="0 0 20 20" width="20" height="20">
           <circle cx="10" cy="10" r="8" fill="none" stroke="#e8e8f0" stroke-width="1.5"/>
-          <text x="10" y="14" text-anchor="middle" fill="#e8e8f0" font-size="12" font-weight="bold">?</text>
+          <text x="10" y="14" text-anchor="middle" fill="#e8e8f0" font-size="12" font-weight="bold" aria-hidden="true">?</text>
         </svg>
       </button>
     </div>
@@ -113,11 +145,11 @@
     <div id="calibration-panel" class="panel hidden">
       <div class="panel-header">
         <h3>Calibration</h3>
-        <button id="close-calibration-btn" class="btn-close">×</button>
+        <button id="close-calibration-btn" class="btn-close" aria-label="Close calibration">×</button>
       </div>
       <div class="panel-body">
         <div class="calibration-item">
-          <label>Compass Offset: <span id="cal-offset-value">0°</span></label>
+          <label for="cal-offset-slider">Compass Offset: <span id="cal-offset-value">0°</span></label>
           <input type="range" id="cal-offset-slider" min="-30" max="30" step="0.5" value="0">
         </div>
         <div class="calibration-item">
@@ -133,30 +165,42 @@
             <span>Tilt: <span id="cal-preview-tilt">---</span></span>
           </div>
         </div>
-        <button id="reset-cal-btn" class="btn-secondary">Reset to Defaults</button>
+        <button id="reset-compass-btn" class="btn-secondary">Reset Compass Offset</button>
+        <button id="reset-cal-btn" class="btn-secondary">Reset All to Defaults</button>
       </div>
     </div>
 
     <div id="info-panel" class="panel hidden">
       <div class="panel-header">
         <h3>Information</h3>
-        <button id="close-info-btn" class="btn-close">×</button>
+        <button id="close-info-btn" class="btn-close" aria-label="Close information">×</button>
       </div>
       <div class="panel-body">
         <p>SolarLock helps you align solar panels to maximize energy capture. Hold your phone flat against the panel surface and tilt it toward the sun.</p>
         <p>All calculations are performed locally on your device. No data is transmitted anywhere.</p>
         <p>For best results, calibrate the compass before use and avoid standing near large metal objects.</p>
+        <div class="ref-table-container">
+          <h4>Quick Reference: Optimal Fixed Angles</h4>
+          <table class="ref-table">
+            <tr><th>Latitude</th><th>Optimal Tilt</th><th>Direction</th></tr>
+            <tr><td>0° (Equator)</td><td>3°</td><td>Either</td></tr>
+            <tr><td>15°</td><td>14°</td><td>South/North</td></tr>
+            <tr><td>30°</td><td>26°</td><td>South/North</td></tr>
+            <tr><td>45°</td><td>37°</td><td>South/North</td></tr>
+            <tr><td>60°</td><td>49°</td><td>South/North</td></tr>
+          </table>
+        </div>
       </div>
     </div>
 
     <div id="arc-panel" class="panel hidden">
       <div class="panel-header">
         <h3>Daily Sun Path</h3>
-        <button id="close-arc-btn" class="btn-close">×</button>
+        <button id="close-arc-btn" class="btn-close" aria-label="Close sun path">×</button>
       </div>
       <div class="panel-body">
         <div id="arc-svg-container">
-          <svg id="arc-svg" viewBox="0 0 300 160" width="100%" height="auto"></svg>
+          <svg id="arc-svg" viewBox="0 0 300 160" width="100%" height="auto" role="img" aria-label="Sun path arc for today"></svg>
         </div>
         <div id="arc-times">
           <span>Sunrise: <span id="arc-sunrise">--:--</span></span>
@@ -164,20 +208,23 @@
           <span>Sunset: <span id="arc-sunset">--:--</span></span>
         </div>
         <p id="arc-peak-window">Best time to align: --</p>
+        <p id="peak-countdown"></p>
       </div>
     </div>
 
     <div id="location-panel" class="panel hidden">
       <div class="panel-header">
         <h3>Location Settings</h3>
-        <button id="close-location-btn" class="btn-close">×</button>
+        <button id="close-location-btn" class="btn-close" aria-label="Close location settings">×</button>
       </div>
       <div class="panel-body">
         <p id="location-status">Using GPS location</p>
         <div class="manual-location">
-          <label>Latitude: <input type="number" id="manual-lat" step="0.0001" placeholder="35.2271"></label>
-          <label>Longitude: <input type="number" id="manual-lon" step="0.0001" placeholder="-80.8431"></label>
-          <button id="apply-location-btn" class="btn-secondary">Apply</button>
+          <label for="manual-lat">Latitude:</label>
+          <input type="number" id="manual-lat" step="0.0001" placeholder="35.2271">
+          <label for="manual-lon">Longitude:</label>
+          <input type="number" id="manual-lon" step="0.0001" placeholder="-80.8431">
+          <button id="apply-location-btn" class="btn-secondary">Apply Manual</button>
           <button id="use-gps-btn" class="btn-secondary">Use GPS</button>
         </div>
         <p class="cal-hint">Default: Charlotte, NC (35.2271, -80.8431)</p>
@@ -185,8 +232,9 @@
     </div>
 
     <div class="compass-container">
-      <canvas id="compass-canvas" width="300" height="300"></canvas>
-      <div id="accuracy-warning" class="hidden">⚠ Low compass accuracy — avoid metal</div>
+      <canvas id="compass-canvas" width="300" height="300" role="img" aria-label="Compass showing sun position and device heading"></canvas>
+      <div id="accuracy-warning" class="hidden"></div>
+      <div id="calibration-progress" class="hidden">Calibrating compass… rotate in figure-8</div>
     </div>
 
     <div id="guidance-section">
@@ -204,19 +252,20 @@
 
     <div id="efficiency-section">
       <div id="efficiency-bar-container">
-        <div id="efficiency-bar"></div>
+        <div id="efficiency-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
       </div>
       <div id="efficiency-label">---</div>
       <div id="power-output">---</div>
       <div id="daily-yield">---</div>
     </div>
 
-    <div id="state-badge">---</div>
+    <div id="state-badge" role="status">---</div>
 
     <div id="controls-section">
       <div class="control-row">
-        <label>Panels: <span id="panel-count-value">10</span></label>
+        <label for="panel-slider">Panels: <span id="panel-count-value">10</span></label>
         <input type="range" id="panel-slider" min="1" max="50" value="10">
+        <input type="number" id="panel-number-input" min="1" max="50" value="10" class="panel-number-input" aria-label="Panel count">
       </div>
       <div class="control-row buttons-row">
         <button id="mode-toggle-btn" class="btn-secondary">Fixed Angle Mode</button>
@@ -234,10 +283,13 @@
         <span id="lock-saved-badge" class="hidden">Saved ✓</span>
       </div>
       <div id="last-lock-content">---</div>
-      <button id="export-lock-btn" class="btn-secondary hidden">Export</button>
+      <div class="lock-actions">
+        <button id="export-lock-btn" class="btn-secondary hidden">Export</button>
+        <button id="copy-lock-btn" class="btn-secondary hidden">Copy</button>
+      </div>
     </div>
   </main>
 
-  <script src="app.js"></script>
+  <script src="app.js" defer></script>
 </body>
 </html>
