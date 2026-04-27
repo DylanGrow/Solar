@@ -1,65 +1,44 @@
-const CACHE = 'solarlock-v1';
-const ASSETS = [
-  '/',
-  '/index.html',
-  '/app.js',
-  '/style.css',
-  '/manifest.json',
-  '/icon-192.svg',
-  '/icon-512.svg'
+const CACHE_NAME = 'solarlock-v1';
+const ASSETS_TO_CACHE = [
+  './',
+  './index.html',
+  './style.css',
+  './app.js'
 ];
 
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(cache => {
-      return cache.addAll(ASSETS).catch(err => {
-        console.warn('Cache addAll failed, some assets may not be cached:', err);
-      });
-    })
+// Install Event - Precache
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(ASSETS_TO_CACHE))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-self.addEventListener('activate', e => {
-  e.waitUntil(
+// Activate Event - Clean old caches
+self.addEventListener('activate', event => {
+  event.waitUntil(
     caches.keys().then(keys => {
       return Promise.all(
-        keys.filter(key => key !== CACHE).map(key => caches.delete(key))
+        keys.filter(key => key !== CACHE_NAME)
+            .map(key => caches.delete(key))
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  e.waitUntil(
-    clients.matchAll({ type: 'window' }).then(clients => {
-      clients.forEach(client => client.postMessage({ type: 'SW_ACTIVATED' }));
-    })
-  );
-  self.clients.claim();
 });
 
-self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      const fetchPromise = fetch(e.request).then(response => {
-        if (!response || response.status !== 200 || response.type !== 'basic') {
-          return response;
-        }
-        const responseClone = response.clone();
-        caches.open(CACHE).then(cache => {
-          cache.put(e.request, responseClone);
+// Fetch Event - Stale-While-Revalidate Strategy
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    caches.match(event.request).then(cachedResponse => {
+      const fetchPromise = fetch(event.request).then(networkResponse => {
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, networkResponse.clone());
         });
-        return response;
-      }).catch(() => {
-        return cached || new Response('Offline', { status: 503 });
-      });
-      return cached || fetchPromise;
+        return networkResponse;
+      }).catch(() => cachedResponse); // Fallback to cache if offline
+      
+      return cachedResponse || fetchPromise;
     })
   );
-});
-
-self.addEventListener('message', e => {
-  if (e.data && e.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
 });
