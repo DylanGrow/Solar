@@ -1,0 +1,9 @@
+/* TEAM */
+Developer: Dylan Grow
+Site: https://github.com/DylanGrow
+
+/* SITE */
+Last update: 2026/04/26
+Standards: HTML5, CSS3, PWA, Web Audio API
+Components: Custom Sun Engine, Geiger Audio Logic
+Software: VS Code
