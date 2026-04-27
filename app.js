@@ -1,419 +1,278 @@
-// ============================================
-// SolarLock - Solar Panel Alignment Instrument
-// Optimized Mobile Build
-// ============================================
-
-// ---------- Constants ----------
-const DEFAULT_LOCATION = { lat: 35.2271, lon: -80.8431 };
-const SENSOR_READ_INTERVAL = 100;
-const SUN_UPDATE_INTERVAL = 5000;
-const HYSTERESIS_DURATION = 500;
-const LOCK_SAVE_DURATION = 2000;
-const LOCATION_TIMEOUT = 10000;
-const COMPASS_ACCURACY_THRESHOLD = 30;
-const IDLE_TIMEOUT = 300000;
-
-// ---------- Utility Functions ----------
-function angleDifference(a, b) {
-  return ((a - b + 540) % 360) - 180;
-}
-
-function clamp(val, min, max) {
-  return Math.max(min, Math.min(max, val));
-}
-
-function round1(val) {
-  return Math.round(val * 10) / 10;
-}
-
-function safeVibrate(pattern) {
-  try {
-    if (navigator.vibrate) navigator.vibrate(pattern);
-  } catch (e) { /* no-op */ }
-}
-
-function safeParseJSON(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch (e) { return fallback; }
-}
-
-let storageTimer = null;
-function debouncedSetItem(key, value) {
-  clearTimeout(storageTimer);
-  storageTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (e) { /* quota exceeded */ }
-  }, 300);
-}
-
-function showToast(message) {
-  const existing = document.querySelector('.toast');
-  if (existing) existing.remove();
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => toast.classList.add('show'));
-  });
-  setTimeout(() => {
-    toast.classList.remove('show');
-    setTimeout(() => toast.remove(), 300);
-  }, 2500);
-}
-
-function formatTime(date) {
-  if (!date || isNaN(date.getTime())) return '--:--';
-  // Updated to 12-hour clock for better mobile readability
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-}
-
-// ---------- State ----------
-const state = {
-  deviceAzimuth: 0,
-  deviceTilt: 0,
-  rawBeta: 0,
-  rawAlpha: null,
-  compassAccuracy: null,
-  lat: null,
-  lon: null,
-  locationAcquired: false,
-  locationSource: 'none',
-  sunAzimuth: 0,
-  sunAltitude: 0,
-  sunrise: null,
-  sunset: null,
-  solarNoon: null,
-  peakSunHours: 0,
-  azimuthError: 0,
-  tiltError: 0,
-  efficiency: 0,
-  alignmentState: 'NIGHT',
-  stateTimestamp: 0,
-  panels: 10,
-  calibrationOffset: 0,
-  tiltZeroOffset: 0,
-  mode: 'realtime',
-  wakeLock: null,
-  audioEnabled: true,
-  muted: false,
-  lastLock: null,
-  permissionGranted: false,
-  lastSunCalc: 0,
-  cachedSun: null,
-  lastMotionTime: 0,
-  flashlightMode: false,
-  isOnline: navigator.onLine,
+// --- CONFIG & CONSTANTS ---
+const CONFIG = {
+    DEFAULT_LAT: 35.1085, // New Bern, NC
+    DEFAULT_LON: -77.0441,
+    DECLINATION: -9.4,    // Magnetic Offset for NC
+    SMOOTHING: 0.15,      // Low-pass filter weight
+    WATT_PER_PANEL: 400,
+    PEAK_HOURS: 5
 };
 
-// ---------- Sensor Layer ----------
-const SensorLayer = {
-  isIOS: /iPhone|iPad|iPod/.test(navigator.userAgent),
-  needsPermission: false,
+// --- STATE ---
+let state = {
+    active: false,
+    lat: CONFIG.DEFAULT_LAT,
+    lon: CONFIG.DEFAULT_LON,
+    phoneAz: 0,
+    phoneTilt: 0,
+    sunAz: 0,
+    sunEl: 0,
+    errorDeg: 999,
+    panels: 10,
+    isMuted: false,
+    wakeLock: null
+};
 
-  init() {
-    this.needsPermission = this.isIOS && typeof DeviceOrientationEvent.requestPermission === 'function';
+// --- AUDIO SYSTEM (Geiger Pulse) ---
+let audioCtx;
+let nextPingTime = 0;
+
+function initAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function handleAudioFeedback() {
+    if (state.isMuted || !audioCtx || state.errorDeg > 20) return;
+
+    let now = audioCtx.currentTime;
+    if (now < nextPingTime) return;
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if (state.errorDeg <= 1) {
+        // Locked Tone
+        osc.frequency.value = 880; 
+        osc.type = 'sine';
+        osc.start(now);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        osc.stop(now + 0.5);
+        nextPingTime = now + 0.1;
+        if (navigator.vibrate) navigator.vibrate(50); // Haptic sync
+    } else {
+        // Geiger Pulse
+        const interval = Math.max(0.1, (state.errorDeg / 20) * 1.5);
+        osc.frequency.value = 400 + (20 - state.errorDeg) * 20; 
+        osc.type = 'square';
+        osc.start(now);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.stop(now + 0.1);
+        nextPingTime = now + interval;
+    }
+}
+
+// --- SUN POSITION MATH ---
+function updateSunPosition() {
+    // Simplified Solar Position Engine
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const diff = now - start;
+    const dayOfYear = Math.floor(diff / 86400000);
+    const hour = now.getHours() + now.getMinutes() / 60;
+
+    const gamma = (2 * Math.PI / 365) * (dayOfYear - 1 + (hour - 12) / 24);
+    const declRad = 0.006918 - 0.399912 * Math.cos(gamma) + 0.070257 * Math.sin(gamma);
     
-    const startBtn = document.getElementById('enable-sensors-btn');
-    startBtn.addEventListener('click', () => this.requestPermissions());
-    document.getElementById('retry-sensors-btn').addEventListener('click', () => this.requestPermissions());
-  },
+    // Rough local solar time approximation
+    const timeOffset = 4 * state.lon; 
+    const tSolar = (hour * 60 + timeOffset) % 1440;
+    const haRad = ((tSolar / 4) - 180) * (Math.PI / 180);
+    const latRad = state.lat * (Math.PI / 180);
 
-  async requestPermissions() {
+    const sinEl = Math.sin(latRad) * Math.sin(declRad) + Math.cos(latRad) * Math.cos(declRad) * Math.cos(haRad);
+    state.sunEl = Math.max(0, Math.asin(sinEl) * (180 / Math.PI)); // Don't track below horizon
+
+    const cosAz = (Math.sin(declRad) - sinEl * Math.sin(latRad)) / (Math.cos(Math.asin(sinEl)) * Math.cos(latRad));
+    let rawAz = Math.acos(Math.max(-1, Math.min(1, cosAz))) * (180 / Math.PI);
+    state.sunAz = haRad > 0 ? 360 - rawAz : rawAz;
+}
+
+// --- SENSOR PROCESSING ---
+function handleOrientation(event) {
+    if (!event.alpha || !event.beta) return;
+
+    // Apply Magnetic Declination Fix (True North)
+    let rawHeading = 360 - event.alpha; 
+    let trueHeading = (rawHeading + CONFIG.DECLINATION + 360) % 360;
+
+    // Low-Pass Filter to remove jitter
+    state.phoneAz = (state.phoneAz * (1 - CONFIG.SMOOTHING)) + (trueHeading * CONFIG.SMOOTHING);
+    state.phoneTilt = (state.phoneTilt * (1 - CONFIG.SMOOTHING)) + (Math.max(0, event.beta) * CONFIG.SMOOTHING);
+
+    // Calculate angular error
+    const azDiff = Math.abs(state.sunAz - state.phoneAz);
+    const azError = Math.min(azDiff, 360 - azDiff);
+    const tiltError = Math.abs(state.sunEl - state.phoneTilt);
+    state.errorDeg = Math.sqrt(azError * azError + tiltError * tiltError);
+
+    updateUI();
+    handleAudioFeedback();
+}
+
+// --- UI & CANVAS DRAWING ---
+const canvas = document.getElementById('compass-canvas');
+const ctx = canvas.getContext('2d');
+const w = canvas.width;
+const h = canvas.height;
+const cx = w / 2;
+const cy = h / 2;
+
+function drawHUD() {
+    ctx.clearRect(0, 0, w, h);
+
+    // Radar Rings
+    ctx.strokeStyle = 'rgba(136, 136, 160, 0.3)';
+    ctx.lineWidth = 1;
+    for(let r = 30; r <= 150; r += 30) {
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // Map Sun Position
+    const maxRadius = 140;
+    const tiltScale = maxRadius / 90;
+    
+    // Draw Target (Sun)
+    const sunR = (90 - state.sunEl) * tiltScale;
+    const sunRad = (state.sunAz - 90) * (Math.PI / 180);
+    const sx = cx + sunR * Math.cos(sunRad);
+    const sy = cy + sunR * Math.sin(sunRad);
+
+    ctx.fillStyle = '#FFB81C';
+    ctx.shadowColor = '#FFB81C';
+    ctx.shadowBlur = 15;
+    ctx.beginPath(); ctx.arc(sx, sy, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Draw Reticle (Phone)
+    const phR = (90 - state.phoneTilt) * tiltScale;
+    const phRad = (state.phoneAz - 90) * (Math.PI / 180);
+    const px = cx + phR * Math.cos(phRad);
+    const py = cy + phR * Math.sin(phRad);
+
+    ctx.strokeStyle = state.errorDeg <= 1 ? '#00e676' : '#e8e8f0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(px - 15, py); ctx.lineTo(px + 15, py);
+    ctx.moveTo(px, py - 15); ctx.lineTo(px, py + 15);
+    ctx.stroke();
+    ctx.beginPath(); ctx.arc(px, py, 10, 0, Math.PI * 2); ctx.stroke();
+
+    if (state.active) requestAnimationFrame(drawHUD);
+}
+
+function updateUI() {
+    // 12-Hour formatted times
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    
+    document.getElementById('az-target').innerText = `${state.sunAz.toFixed(1)}°`;
+    document.getElementById('tilt-target').innerText = `${state.sunEl.toFixed(1)}°`;
+
+    // Efficiency Math (Cosine Loss)
+    const incidence = state.errorDeg * (Math.PI / 180);
+    const efficiency = Math.max(0, Math.cos(incidence)) * 100;
+    
+    document.getElementById('efficiency-bar').style.width = `${efficiency}%`;
+    document.getElementById('efficiency-label').innerText = `${efficiency.toFixed(1)}% Array Efficiency`;
+
+    const maxPower = state.panels * CONFIG.WATT_PER_PANEL;
+    const actualPower = maxPower * (efficiency / 100);
+    const lostPower = maxPower - actualPower;
+    
+    document.getElementById('power-output').innerText = `Power Yield: ${Math.round(actualPower)}W (Losing ${Math.round(lostPower)}W)`;
+
+    // Lock Button Logic
+    const lockBtn = document.getElementById('save-lock-btn');
+    if (state.errorDeg <= 2) {
+        lockBtn.disabled = false;
+        document.getElementById('efficiency-bar-container').classList.add('locked');
+    } else {
+        lockBtn.disabled = true;
+        document.getElementById('efficiency-bar-container').classList.remove('locked');
+    }
+}
+
+// --- CSV EXPORT LOGIC ---
+function formatAMPM(date) {
+  let hours = date.getHours();
+  let minutes = date.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // the hour '0' should be '12'
+  minutes = minutes < 10 ? '0'+minutes : minutes;
+  return hours + ':' + minutes + ' ' + ampm;
+}
+
+document.getElementById('save-lock-btn').addEventListener('click', () => {
+    if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+    const now = new Date();
+    const formattedTime = formatAMPM(now);
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    
+    const csvContent = "Date,Time,Lat,Lon,True Azimuth,Tilt,Efficiency,Active Panels\n" +
+        `${dateStr},${formattedTime},${state.lat.toFixed(4)},${state.lon.toFixed(4)},${state.phoneAz.toFixed(1)},${state.phoneTilt.toFixed(1)},${(Math.cos(state.errorDeg * Math.PI/180)*100).toFixed(1)}%,${state.panels}`;
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `SolarLock_Survey_${dateStr}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+});
+
+// --- BOOTSTRAP & WAKE LOCK ---
+async function requestWakeLock() {
     try {
-      if (this.needsPermission) {
-        const perm = await DeviceOrientationEvent.requestPermission();
-        if (perm !== 'granted') {
-          this.showDenied();
-          return;
-        }
-      }
-      
-      await this.requestLocation();
-      this.startSensors();
-      
-      document.getElementById('permission-overlay').classList.remove('active');
-      state.permissionGranted = true;
-      
-      App.showMainUI();
-      AudioEngine.init();
-      App.startMainLoop();
-      App.enableWakeLock();
+        state.wakeLock = await navigator.wakeLock.request('screen');
     } catch (err) {
-      console.warn('Permission error:', err);
-      this.showDenied();
+        console.log("Wake Lock failed:", err);
     }
-  },
+}
 
-  requestLocation() {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        this.useDefaultLocation();
-        resolve();
-        return;
-      }
-      const timeout = setTimeout(() => {
-        this.useDefaultLocation();
-        resolve();
-      }, LOCATION_TIMEOUT);
+document.getElementById('enable-sensors-btn').addEventListener('click', () => {
+    initAudio();
+    requestWakeLock();
+    
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().then(permissionState => {
+            if (permissionState === 'granted') startApp();
+        }).catch(console.error);
+    } else {
+        startApp();
+    }
+});
 
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          clearTimeout(timeout);
-          state.lat = pos.coords.latitude;
-          state.lon = pos.coords.longitude;
-          state.locationAcquired = true;
-          state.locationSource = 'gps';
-          document.getElementById('location-status').textContent = `GPS: ${round1(state.lat)}, ${round1(state.lon)}`;
-          resolve();
-        },
-        () => {
-          clearTimeout(timeout);
-          this.useDefaultLocation();
-          resolve();
-        },
-        { enableHighAccuracy: true, timeout: LOCATION_TIMEOUT, maximumAge: 600000 }
-      );
-    });
-  },
-
-  useDefaultLocation() {
-    state.lat = DEFAULT_LOCATION.lat;
-    state.lon = DEFAULT_LOCATION.lon;
-    state.locationAcquired = true;
-    state.locationSource = 'default';
-    document.getElementById('location-status').textContent = 'Using default location (NC)';
-  },
-
-  startSensors() {
-    window.addEventListener('deviceorientation', (event) => {
-      if (event.alpha === null && event.webkitCompassHeading === undefined) {
-        document.getElementById('calibration-progress').classList.remove('hidden');
-        return;
-      }
-      document.getElementById('calibration-progress').classList.add('hidden');
-
-      state.rawAlpha = event.alpha;
-      state.rawBeta = event.beta;
-      state.compassAccuracy = event.webkitCompassAccuracy ?? null;
-      state.lastMotionTime = Date.now();
-
-      const rawHeading = this.getCompassHeading(event);
-      state.deviceTilt = Math.abs(event.beta || 0);
-
-      const declination = SunEngine.getMagneticDeclination(state.lat, state.lon);
-      state.deviceAzimuth = (rawHeading + declination + state.calibrationOffset + 360) % 360;
-
-      const warning = document.getElementById('accuracy-warning');
-      if (state.compassAccuracy !== null && state.compassAccuracy > COMPASS_ACCURACY_THRESHOLD) {
-        warning.textContent = '⚠ Low accuracy - avoid metal';
-        warning.classList.remove('hidden');
-      } else {
-        warning.classList.add('hidden');
-      }
-    }, true);
-  },
-
-  getCompassHeading(event) {
-    if (event.webkitCompassHeading != null) return event.webkitCompassHeading;
-    if (event.alpha != null) return (360 - event.alpha) % 360;
-    return 0;
-  },
-
-  showDenied() {
+function startApp() {
+    state.active = true;
     document.getElementById('permission-overlay').classList.remove('active');
-    document.getElementById('sensors-denied-overlay').classList.add('active');
-  }
-};
-
-// ---------- Sun Engine ----------
-const SunEngine = {
-  getMagneticDeclination(lat, lon) {
-    if (lat === null || lon === null) return 0;
-    return (lon / 22) - (lat / 160);
-  },
-
-  getSunPosition(date, lat, lon) {
-    if (lat === null || lon === null) return { altitude: 0, azimuth: 180 };
-    const JD = date.getTime() / 86400000 + 2440587.5;
-    const n = JD - 2451545.0;
-    const L = (280.46 + 0.9856474 * n) % 360;
-    const g = ((357.528 + 0.9856003 * n) % 360) * Math.PI / 180;
-    const lambda = (L + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * Math.PI / 180;
-    const RA = Math.atan2(Math.cos(23.439 * Math.PI / 180) * Math.sin(lambda), Math.cos(lambda));
-    const dec = Math.asin(Math.sin(23.439 * Math.PI / 180) * Math.sin(lambda));
-    const LMST = ((6.697375 + 0.0657098242 * n + (date.getTime() % 86400000) / 3600000) % 24 + lon / 15 + 24) % 24;
-    const HA = (LMST * 15 - RA * 180 / Math.PI + 360) % 360;
-    const altitude = Math.asin(Math.sin(dec) * Math.sin(lat * Math.PI / 180) + Math.cos(dec) * Math.cos(lat * Math.PI / 180) * Math.cos(HA * Math.PI / 180)) * 180 / Math.PI;
-    const azimuth = ((Math.atan2(-Math.cos(dec) * Math.cos(lat * Math.PI / 180) * Math.sin(HA * Math.PI / 180), Math.sin(dec) - Math.sin(lat * Math.PI / 180) * Math.sin(altitude * Math.PI / 180)) * 180 / Math.PI) + 360) % 360;
-    return { altitude, azimuth };
-  },
-
-  getSunriseSunset(date, lat, lon) {
-    const day = new Date(date); day.setHours(0, 0, 0, 0);
-    let sunrise = null, sunset = null;
-    for (let h = 0; h < 24; h += 0.25) {
-      const t = new Date(day.getTime() + h * 3600000);
-      const pos = this.getSunPosition(t, lat, lon);
-      if (pos.altitude > -0.833 && sunrise === null && h >= 3) sunrise = t;
-      if (pos.altitude < -0.833 && sunrise !== null && sunset === null && h > 6) { sunset = t; break; }
-    }
-    sunrise = sunrise || new Date(day.getTime() + 6.5 * 3600000);
-    sunset = sunset || new Date(day.getTime() + 20 * 3600000);
-    return { sunrise, sunset, solarNoon: new Date((sunrise.getTime() + sunset.getTime()) / 2) };
-  },
-
-  update() {
-    const now = Date.now();
-    if (now - state.lastSunCalc > SUN_UPDATE_INTERVAL || !state.cachedSun) {
-      const date = new Date();
-      state.cachedSun = this.getSunPosition(date, state.lat, state.lon);
-      state.lastSunCalc = now;
-      Object.assign(state, this.getSunriseSunset(date, state.lat, state.lon));
-    }
-    state.sunAzimuth = state.cachedSun.azimuth;
-    state.sunAltitude = state.cachedSun.altitude;
-  }
-};
-
-// ---------- Alignment Engine ----------
-const AlignmentEngine = {
-  update() {
-    const target = state.mode === 'fixed' 
-      ? SunEngine.getOptimalFixedAngle(state.lat) 
-      : { azimuth: state.sunAzimuth, tilt: state.sunAltitude };
-
-    state.azimuthError = angleDifference(state.deviceAzimuth, target.azimuth);
-    state.tiltError = state.deviceTilt - target.tilt;
-
-    const azEff = Math.max(0, Math.cos(Math.abs(state.azimuthError) * Math.PI / 180));
-    const tiltEff = Math.max(0, Math.cos(Math.abs(state.tiltError) * Math.PI / 180));
-    state.efficiency = azEff * tiltEff;
-    
-    this.updateState();
-  },
-
-  updateState() {
-    const prev = state.alignmentState;
-    if (state.sunAltitude < -6) state.alignmentState = 'NIGHT';
-    else if (state.sunAltitude < 5) state.alignmentState = 'LOW_SUN';
-    else if (Math.abs(state.azimuthError) > 10 || Math.abs(state.tiltError) > 15) state.alignmentState = 'OFF_TARGET';
-    else if (Math.abs(state.azimuthError) < 0.5 && Math.abs(state.tiltError) < 2) state.alignmentState = 'LOCKED';
-    else if (Math.abs(state.azimuthError) <= 3 && Math.abs(state.tiltError) <= 5) state.alignmentState = 'NEAR_LOCK';
-    else state.alignmentState = 'TRACKING';
-    
-    if (prev !== state.alignmentState) state.stateTimestamp = Date.now();
-  },
-
-  getOutput() { return Math.round(state.panels * 100 * state.efficiency); }
-};
-
-// ---------- Audio Engine ----------
-const AudioEngine = {
-  ctx: null, g: null, osc: null,
-  init() {
-    try {
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-      this.g = this.ctx.createGain(); this.g.connect(this.ctx.destination);
-      this.g.gain.value = 0;
-    } catch (e) { console.warn('Audio blocked'); }
-  },
-  playTone(freq, dur) {
-    if (!this.ctx || state.muted) return;
-    const o = this.ctx.createOscillator();
-    const g = this.ctx.createGain();
-    o.frequency.value = freq; o.connect(g); g.connect(this.ctx.destination);
-    g.gain.setTargetAtTime(0.1, this.ctx.currentTime, 0.01);
-    g.gain.setTargetAtTime(0, this.ctx.currentTime + dur, 0.01);
-    o.start(); o.stop(this.ctx.currentTime + dur + 0.1);
-  },
-  update(alignmentState) {
-    if (alignmentState === 'LOCKED' && Date.now() % 1000 < 100) this.playTone(880, 0.05);
-  }
-};
-
-// ---------- Storage Engine ----------
-const StorageEngine = {
-  saveLock() {
-    const lock = { az: round1(state.deviceAzimuth), tilt: round1(state.deviceTilt), ts: new Date().toISOString() };
-    debouncedSetItem('solarlock_last_lock', lock);
-    showToast('Alignment Saved ✓');
-  },
-  loadLastLock() {
-    const l = safeParseJSON('solarlock_last_lock', null);
-    if (l) document.getElementById('last-lock-content').innerHTML = `Last: ${l.az}° / ${l.tilt}°`;
-  }
-};
-
-// ---------- UI ----------
-const UI = {
-  compassCanvas: null, ctx: null,
-  init() {
-    this.compassCanvas = document.getElementById('compass-canvas');
-    this.ctx = this.compassCanvas.getContext('2d');
-    this.resize();
-    window.addEventListener('resize', () => this.resize());
-    this.bind();
-  },
-  resize() {
-    const size = this.compassCanvas.offsetWidth;
-    this.compassCanvas.width = size; this.compassCanvas.height = size;
-  },
-  bind() {
-    document.getElementById('mode-toggle-btn').addEventListener('click', () => {
-      state.mode = state.mode === 'realtime' ? 'fixed' : 'realtime';
-      showToast(`Switched to ${state.mode} mode`);
-    });
-    document.getElementById('save-lock-btn').addEventListener('click', () => StorageEngine.saveLock());
-    document.getElementById('mute-btn').addEventListener('click', () => {
-      state.muted = !state.muted;
-      document.getElementById('mute-icon-unmuted').classList.toggle('hidden', state.muted);
-      document.getElementById('mute-icon-muted').classList.toggle('hidden', !state.muted);
-    });
-    document.getElementById('panel-slider').addEventListener('input', (e) => {
-      state.panels = e.target.value;
-      document.getElementById('panel-count-value').textContent = state.panels;
-    });
-  },
-  render() {
-    const c = this.ctx, w = this.compassCanvas.width, r = w / 2 - 20;
-    c.clearRect(0, 0, w, w);
-    c.strokeStyle = '#333355'; c.beginPath(); c.arc(w/2, w/2, r, 0, 7); c.stroke();
-    
-    // Sun Needle
-    const sRad = (state.sunAzimuth - 90) * Math.PI / 180;
-    c.strokeStyle = '#f5a623'; c.lineWidth = 4; c.beginPath();
-    c.moveTo(w/2, w/2); c.lineTo(w/2 + Math.cos(sRad)*r, w/2 + Math.sin(sRad)*r); c.stroke();
-
-    document.getElementById('power-output').textContent = `${AlignmentEngine.getOutput()}W Output`;
-    document.getElementById('state-badge').textContent = state.alignmentState;
-    document.getElementById('az-instruction').textContent = `${round1(state.azimuthError)}° to target`;
-  }
-};
-
-// ---------- App ----------
-const App = {
-  init() { SensorLayer.init(); UI.init(); StorageEngine.loadLastLock(); },
-  showMainUI() {
     document.getElementById('app-header').classList.remove('hidden');
     document.getElementById('main-content').classList.remove('hidden');
-  },
-  enableWakeLock() {
-    if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(() => {});
-  },
-  startMainLoop() {
-    const loop = () => {
-      SunEngine.update();
-      AlignmentEngine.update();
-      AudioEngine.update(state.alignmentState);
-      UI.render();
-      requestAnimationFrame(loop);
-    };
-    loop();
-  }
-};
 
-document.addEventListener('DOMContentLoaded', () => App.init());
+    window.addEventListener('deviceorientationabsolute', handleOrientation);
+    // Fallback if absolute isn't supported
+    window.addEventListener('deviceorientation', handleOrientation);
+
+    setInterval(updateSunPosition, 60000); // Update sun every minute
+    updateSunPosition();
+    requestAnimationFrame(drawHUD);
+}
+
+// Controls
+document.getElementById('panel-slider').addEventListener('input', (e) => {
+    state.panels = parseInt(e.target.value);
+    document.getElementById('panel-count-value').innerText = state.panels;
+    document.getElementById('panel-number-input').value = state.panels;
+});
+
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW registration failed:', err));
+}
