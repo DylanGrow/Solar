@@ -1,9 +1,12 @@
-const CACHE_NAME = 'solarlock-v1';
+const CACHE_NAME = 'solarlock-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './style.css',
-  './app.js'
+  './app.js',
+  './manifest.json',
+  './icon-192.svg',
+  './icon-512.svg'
 ];
 
 // Install Event - Precache
